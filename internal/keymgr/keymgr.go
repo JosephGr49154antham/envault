@@ -59,8 +59,11 @@ func LoadIdentity(path string) (*age.X25519Identity, error) {
 		return nil, fmt.Errorf("reading identity file: %w", err)
 	}
 	identities, err := age.ParseIdentities(bytesReader(data))
-	if err != nil || len(identities) == 0 {
+	if err != nil {
 		return nil, fmt.Errorf("parsing identity: %w", err)
+	}
+	if len(identities) == 0 {
+		return nil, fmt.Errorf("no identities found in %s", path)
 	}
 	id, ok := identities[0].(*age.X25519Identity)
 	if !ok {
@@ -77,4 +80,16 @@ func DefaultIdentityPath() (string, error) {
 		return "", fmt.Errorf("resolving home directory: %w", err)
 	}
 	return filepath.Join(home, DefaultKeyDir, DefaultKeyFile), nil
+}
+
+// IdentityExists reports whether an identity file exists at the given path.
+func IdentityExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return false, fmt.Errorf("checking identity file: %w", err)
 }
