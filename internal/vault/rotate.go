@@ -3,6 +3,7 @@ package vault
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -34,28 +35,27 @@ func Rotate(cfg Config, opts RotateOptions) error {
 
 	// Only back up if an encrypted file already exists.
 	if _, err := os.Stat(cfg.EncryptedFile); err == nil {
-		timestamp := time.Now().UTC().Format("20060102T150405Z")
-		backupName := fmt.Sprintf("%s_%s", timestamp, lastSegment(cfg.EncryptedFile))
-		backupPath := backupDir + "/" + backupName
-
-		data, readErr := os.ReadFile(cfg.EncryptedFile)
-		if readErr != nil {
-			return fmt.Errorf("read encrypted file for backup: %w", readErr)
-		}
-		if writeErr := os.WriteFile(backupPath, data, 0o600); writeErr != nil {
-			return fmt.Errorf("write backup: %w", writeErr)
+		if err := backupEncryptedFile(cfg.EncryptedFile, backupDir); err != nil {
+			return err
 		}
 	}
 
 	return Rekey(cfg)
 }
 
-// lastSegment returns the last path segment of p (reuses recipients helper).
-func lastSegment(p string) string {
-	for i := len(p) - 1; i >= 0; i-- {
-		if p[i] == '/' || p[i] == '\\' {
-			return p[i+1:]
-		}
+// backupEncryptedFile copies src into backupDir with a timestamp prefix so
+// that multiple rotations do not overwrite each other.
+func backupEncryptedFile(src, backupDir string) error {
+	timestamp := time.Now().UTC().Format("20060102T150405Z")
+	backupName := fmt.Sprintf("%s_%s", timestamp, filepath.Base(src))
+	backupPath := filepath.Join(backupDir, backupName)
+
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return fmt.Errorf("read encrypted file for backup: %w", err)
 	}
-	return p
+	if err := os.WriteFile(backupPath, data, 0o600); err != nil {
+		return fmt.Errorf("write backup: %w", err)
+	}
+	return nil
 }
