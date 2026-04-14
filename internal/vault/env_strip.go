@@ -7,49 +7,47 @@ import (
 	"strings"
 )
 
-// StripOptions controls what Strip removes from an env file.
+// StripOptions controls which lines are removed during stripping.
 type StripOptions struct {
-	// RemoveComments removes lines that are pure comments (start with #).
+	// RemoveComments removes lines beginning with '#'.
 	RemoveComments bool
 	// RemoveBlanks removes empty or whitespace-only lines.
 	RemoveBlanks bool
-	// Dst is the output path; if empty, src is overwritten in place.
+	// Dst is the output file path. If empty, the source file is overwritten.
 	Dst string
 }
 
-// Strip reads src and writes a cleaned version to Dst (or src if Dst is empty),
-// removing comments and/or blank lines according to opts.
-func Strip(cfg Config, src string, opts StripOptions) (int, error) {
+// Strip reads an env file and writes a cleaned version to Dst (or in-place
+// if Dst is empty), optionally removing comment lines and/or blank lines.
+//
+// The vault must be initialised before calling Strip.
+func Strip(cfg Config, src string, opts StripOptions) error {
 	if !IsInitialised(cfg) {
-		return 0, fmt.Errorf("vault is not initialised; run 'envault init' first")
+		return fmt.Errorf("vault is not initialised; run 'envault init' first")
 	}
 
 	f, err := os.Open(src)
 	if err != nil {
-		return 0, fmt.Errorf("open %s: %w", src, err)
+		return fmt.Errorf("open source file: %w", err)
 	}
 	defer f.Close()
 
 	var kept []string
-	removed := 0
-
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
 		trimmed := strings.TrimSpace(line)
 
 		if opts.RemoveComments && strings.HasPrefix(trimmed, "#") {
-			removed++
 			continue
 		}
 		if opts.RemoveBlanks && trimmed == "" {
-			removed++
 			continue
 		}
 		kept = append(kept, line)
 	}
 	if err := scanner.Err(); err != nil {
-		return 0, fmt.Errorf("reading %s: %w", src, err)
+		return fmt.Errorf("read source file: %w", err)
 	}
 
 	dst := opts.Dst
@@ -59,17 +57,15 @@ func Strip(cfg Config, src string, opts StripOptions) (int, error) {
 
 	out, err := os.Create(dst)
 	if err != nil {
-		return 0, fmt.Errorf("create %s: %w", dst, err)
+		return fmt.Errorf("create output file: %w", err)
 	}
 	defer out.Close()
 
 	w := bufio.NewWriter(out)
 	for _, line := range kept {
-		fmt.Fprintln(w, line)
+		if _, err := fmt.Fprintln(w, line); err != nil {
+			return fmt.Errorf("write output: %w", err)
+		}
 	}
-	if err := w.Flush(); err != nil {
-		return 0, fmt.Errorf("write %s: %w", dst, err)
-	}
-
-	return removed, nil
+	return w.Flush()
 }
