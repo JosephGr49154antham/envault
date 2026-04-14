@@ -68,3 +68,18 @@ func List(cfg Config) ([]EnvFileInfo, error) {
 	}
 	return infos, nil
 }
+
+// Find returns the EnvFileInfo for the named env file, or an error if it is
+// not tracked in the vault. name should match the base filename (e.g. ".env").
+func Find(cfg Config, name string) (EnvFileInfo, error) {
+	infos, err := List(cfg)
+	if err != nil {
+		return EnvFileInfo{}, err
+	}
+	for _, info := range infos {
+		if info.Name == name {
+			return info, nil
+		}
+	}
+	return EnvFileInfo{}, fmt.Errorf("no vault entry found for %q", name)
+}
