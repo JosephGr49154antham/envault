@@ -91,3 +91,20 @@ func Validate(cfg Config, src string) (ValidationResult, error) {
 
 	return result, nil
 }
+
+// Summary returns a human-readable summary of the validation result.
+// It reports the number of issues found, or confirms the file is valid.
+func (r ValidationResult) Summary() string {
+	if r.Valid && len(r.Issues) == 0 {
+		return fmt.Sprintf("%s: OK", r.File)
+	}
+	lines := make([]string, 0, len(r.Issues)+1)
+	for _, issue := range r.Issues {
+		lines = append(lines, fmt.Sprintf("  line %d: %s", issue.Line, issue.Message))
+	}
+	status := "warnings"
+	if !r.Valid {
+		status = "errors"
+	}
+	return fmt.Sprintf("%s: %d %s\n%s", r.File, len(r.Issues), status, strings.Join(lines, "\n"))
+}
